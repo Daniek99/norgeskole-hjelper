@@ -1,5 +1,5 @@
 // src/pages/InvitePage.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 type Role = "teacher" | "learner" | "admin";
 
 export default function InvitePage() {
-  const { code } = useParams();
+  const { code } = useParams(); // URL-param: /invite/:code
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
@@ -26,37 +26,34 @@ export default function InvitePage() {
   const [lPass, setLPass] = useState("");
   const [l1, setL1] = useState("");
 
+  // ------------------------------------------------------------------
+  // Hent rollen for invitasjonskoden via RPC: public.get_invite_role(code)
+  // NB: RPC-en returnerer table(role, classroom_id) -> array med 0/1 rad.
+  // ------------------------------------------------------------------
   useEffect(() => {
-    let active = true;
     (async () => {
       if (!code) return;
       setLoading(true);
       setError(null);
-      const { data, error } = await supabase
-        .from("admin_invite_links")
-        .select("for_role, active")
-        .eq("invite_code", code)
-        .maybeSingle();
+      console.log("Calling get_invite_role with code:", code);
+      const { data, error } = await supabase.rpc("get_invite_role", { code: code });
 
-      if (!active) return;
-      if (error || !data || !data.active) {
-        setError("Ugyldig eller inaktiv invitasjon.");
+      console.log("RPC response:", { data, error });
+      if (error) {
+        setError(error.message || "Ugyldig eller inaktiv invitasjon.");
         setRole(null);
       } else {
-        setRole(data.for_role as Role);
+        setRole(data as Role);
       }
       setLoading(false);
     })();
-    return () => {
-      active = false;
-    };
   }, [code]);
 
   const isTeacher = role === "teacher";
   const isLearner = role === "learner";
 
+  // Opprett/bruk sesjon: prøv login, hvis ikke -> sign up
   async function ensureSessionEmail(email: string, password: string) {
-    // Try sign in; if user doesn't exist, sign up
     const { error: signInErr } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -68,45 +65,88 @@ export default function InvitePage() {
       password,
     });
     if (signUpErr) throw signUpErr;
-  }
 
-  async function handleTeacherContinue() {
-    try {
-      if (!code) return;
-      setLoading(true);
-      await ensureSessionEmail(tEmail, tPass);
-      // attach to classroom + role
-      const { error: rpcErr } = await supabase.rpc("register_with_invite", {
-        invite_code: code,
-        name: tName || tEmail.split("@")[0],
-        l1_code: null,
-        want_role: "teacher",
-      });
-      if (rpcErr) throw rpcErr;
-      navigate("/teacher");
-    } catch (e: any) {
-      setError(e.message ?? "Noe gikk galt ved lærer-registrering.");
-    } finally {
-      setLoading(false);
+    // Better wait: Poll for session with timeout (replaced fixed delay)
+    let attempts = 0;
+    while (attempts < 10) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) return;
+      await new Promise(resolve => setTimeout(resolve, 500)); // 0.5s interval, max 5s
+      attempts++;
     }
+    throw new Error("Session not created after timeout");
   }
 
+  // -----------------------------
+  // Fortsett for lærer
+  // -----------------------------
+  async function handleTeacherContinue() {
+  try {
+    if (!code) return;
+    if (!tEmail || !tPass) {
+      setError("E-post og passord er påkrevd.");
+      return;
+    }
+    setLoading(true);
+    await ensureSessionEmail(tEmail, tPass);
+
+    console.log("Before RPC call with code:", code, "name:", tName || tEmail.split("@")[0]);
+    const { error: rpcErr } = await supabase.rpc("register_with_invite", {
+      code,
+      name: tName || tEmail.split("@")[0],
+      l1_code: null,
+      want_role: "teacher",
+    });
+    if (rpcErr) throw rpcErr;
+    console.log("RPC succeeded, refreshing session");
+
+    // Refresh session and profile
+    await supabase.auth.refreshSession();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle(); // Ensure client cache updates
+    }
+
+    navigate("/teacher");
+  } catch (e: any) {
+    console.error("Teacher continue error:", e);
+    setError(e.message ?? "Noe gikk galt ved lærer-registrering.");
+  } finally {
+    setLoading(false);
+  }
+}
+
+  // -----------------------------
+  // Fortsett for elev
+  // -----------------------------
   async function handleLearnerContinue() {
     try {
       if (!code) return;
+      if (!lName || !lPass) {
+        setError("Navn og passord er påkrevd."); // Added basic validation
+        return;
+      }
       setLoading(true);
-      // learners use stub email
+
+      // Elever bruker “stub” e-post (ingen bekreftelse trengs)
       const stub = `${crypto.randomUUID()}@noemail.local`;
       await ensureSessionEmail(stub, lPass);
+
       const { error: rpcErr } = await supabase.rpc("register_with_invite", {
-        invite_code: code,
+        code,
         name: lName,
         l1_code: l1 || null,
         want_role: "learner",
       });
       if (rpcErr) throw rpcErr;
+
       navigate("/elev");
     } catch (e: any) {
+      console.error("Learner continue error:", e); // Added console logging for debug
       setError(e.message ?? "Noe gikk galt ved elev-registrering.");
     } finally {
       setLoading(false);
@@ -136,22 +176,32 @@ export default function InvitePage() {
 
       {isTeacher && (
         <div className="space-y-4">
-          <p>Denne invitasjonen er for rollen: <b>lærer</b></p>
+          <p>
+            Denne invitasjonen er for rollen: <b>lærer</b>
+          </p>
 
           <div className="space-y-2">
             <Label>Navn</Label>
-            <Input value={tName} onChange={e => setTName(e.target.value)} />
+            <Input value={tName} onChange={(e) => setTName(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>E‑post</Label>
-            <Input value={tEmail} onChange={e => setTEmail(e.target.value)} />
+            <Label>E-post</Label>
+            <Input value={tEmail} onChange={(e) => setTEmail(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label>Passord</Label>
-            <Input type="password" value={tPass} onChange={e => setTPass(e.target.value)} />
+            <Input
+              type="password"
+              value={tPass}
+              onChange={(e) => setTPass(e.target.value)}
+            />
           </div>
 
-          <Button className="w-full" onClick={handleTeacherContinue} disabled={loading}>
+          <Button
+            className="w-full"
+            onClick={handleTeacherContinue}
+            disabled={loading}
+          >
             {loading ? "Sender…" : "Fortsett som lærer"}
           </Button>
         </div>
@@ -159,30 +209,42 @@ export default function InvitePage() {
 
       {isLearner && (
         <div className="space-y-4">
-          <p>Denne invitasjonen er for rollen: <b>elev</b></p>
+          <p>
+            Denne invitasjonen er for rollen: <b>elev</b>
+          </p>
 
           <div className="space-y-2">
             <Label>Navn</Label>
-            <Input value={lName} onChange={e => setLName(e.target.value)} />
+            <Input value={lName} onChange={(e) => setLName(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label>Passord</Label>
-            <Input type="password" value={lPass} onChange={e => setLPass(e.target.value)} />
+            <Input
+              type="password"
+              value={lPass}
+              onChange={(e) => setLPass(e.target.value)}
+            />
           </div>
           <div className="space-y-2">
             <Label>Morsmål (L1)</Label>
-            <Input value={l1} onChange={e => setL1(e.target.value)} placeholder="ar / so / fa / ps / ..." />
+            <Input
+              value={l1}
+              onChange={(e) => setL1(e.target.value)}
+              placeholder="ar / so / fa / ps / ..."
+            />
           </div>
 
-          <Button className="w-full" onClick={handleLearnerContinue} disabled={loading}>
+          <Button
+            className="w-full"
+            onClick={handleLearnerContinue}
+            disabled={loading}
+          >
             {loading ? "Sender…" : "Fortsett som elev"}
           </Button>
         </div>
       )}
 
-      {!isTeacher && !isLearner && (
-        <div>Ukjent rolle i invitasjonen.</div>
-      )}
+      {!isTeacher && !isLearner && <div>Ukjent rolle i invitasjonen.</div>}
     </div>
   );
 }

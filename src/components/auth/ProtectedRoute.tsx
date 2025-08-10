@@ -1,27 +1,45 @@
-import { Navigate, Outlet } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
-import { useMe } from "@/hooks/useMe";
-import { Loader2 } from "lucide-react";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
-interface Props { role: "teacher" | "learner" | "admin" }
+interface ProtectedRouteProps {
+  role: "teacher" | "learner" | "admin";
+}
 
-export const ProtectedRoute = ({ role }: Props) => {
-  const { user, loading } = useAuth();
-  const { data: me, isLoading } = useMe(user?.id);
+export const ProtectedRoute = ({ role }: ProtectedRouteProps) => {
+  const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const location = useLocation();
 
-  if (loading || isLoading) {
-    return (
-      <div className="min-h-screen grid place-items-center">
-        <Loader2 className="animate-spin" />
-      </div>
-    );
+useEffect(() => {
+  const fetchUserRole = async () => {
+    console.log("Fetching user role...");
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      console.log("User found, fetching profile:", user.id);
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      if (error) console.error("Profile fetch error:", error);
+      setUserRole(profile?.role || null);
+      console.log("User role set to:", profile?.role);
+    } else {
+      console.log("No user found");
+    }
+    setLoading(false);
+  };
+  fetchUserRole();
+}, []);
+
+  if (loading) {
+    return <div className="mx-auto max-w-xl p-8 text-center">Laster…</div>;
   }
 
-  if (!user) return <Navigate to="/" replace />;
-  if (!me) return <Navigate to="/" replace />;
-  if (me.role !== role) {
-    if (me.role === "teacher" || me.role === "admin") return <Navigate to="/teacher" replace />;
-    return <Navigate to="/elev" replace />;
+  if (!userRole || userRole !== role) {
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
+
   return <Outlet />;
 };
