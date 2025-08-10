@@ -51,6 +51,20 @@ const AuthGate = () => {
     if (!email || !password) return toast({ title: "Fyll inn e-post og passord" });
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return toast({ title: "Innlogging feilet", description: error.message });
+
+    // If invite code provided, finalize teacher linkage
+    if (invite) {
+      const { error: rpcErr } = await supabase.rpc("register_with_invite", {
+        invite_code: invite,
+        name: name || email.split("@")[0],
+        l1_code: null,
+        want_role: "teacher",
+      });
+      if (rpcErr) {
+        toast({ title: "Invitasjon feilet", description: rpcErr.message });
+      }
+    }
+
     navigate("/teacher");
   };
 

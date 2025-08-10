@@ -21,7 +21,7 @@ useEffect(() => {
         .from("profiles")
         .select("role")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
       if (error) console.error("Profile fetch error:", error);
       setUserRole(profile?.role || null);
       console.log("User role set to:", profile?.role);
@@ -37,7 +37,7 @@ useEffect(() => {
     return <div className="mx-auto max-w-xl p-8 text-center">Laster…</div>;
   }
 
-  if (!userRole || userRole !== role) {
+  if (!userRole || (userRole !== role && !(role === "teacher" && userRole === "admin"))) {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
