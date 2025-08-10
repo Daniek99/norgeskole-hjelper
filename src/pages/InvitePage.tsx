@@ -27,23 +27,26 @@ export default function InvitePage() {
   const [l1, setL1] = useState("");
 
   // ------------------------------------------------------------------
-  // Hent rollen for invitasjonskoden via RPC: public.get_invite_role(code)
-  // NB: RPC-en returnerer table(role, classroom_id) -> array med 0/1 rad.
+  // Hent rollen for invitasjonskoden ved å slå opp i admin_invite_links
   // ------------------------------------------------------------------
   useEffect(() => {
     (async () => {
       if (!code) return;
       setLoading(true);
       setError(null);
-      console.log("Calling get_invite_role with code:", code);
-      const { data, error } = await supabase.rpc("get_invite_role", { code: code });
+      console.log("Slår opp invitasjon for kode:", code);
+      const { data, error } = await supabase
+        .from("admin_invite_links")
+        .select("for_role")
+        .eq("invite_code", code)
+        .eq("active", true)
+        .maybeSingle();
 
-      console.log("RPC response:", { data, error });
-      if (error) {
-        setError(error.message || "Ugyldig eller inaktiv invitasjon.");
+      if (error || !data) {
+        setError(error?.message || "Ugyldig eller inaktiv invitasjon.");
         setRole(null);
       } else {
-        setRole(data as Role);
+        setRole(data.for_role as Role);
       }
       setLoading(false);
     })();
@@ -92,7 +95,7 @@ export default function InvitePage() {
 
     console.log("Before RPC call with code:", code, "name:", tName || tEmail.split("@")[0]);
     const { error: rpcErr } = await supabase.rpc("register_with_invite", {
-      code,
+      invite_code: code,
       name: tName || tEmail.split("@")[0],
       l1_code: null,
       want_role: "teacher",
@@ -137,7 +140,7 @@ export default function InvitePage() {
       await ensureSessionEmail(stub, lPass);
 
       const { error: rpcErr } = await supabase.rpc("register_with_invite", {
-        code,
+        invite_code: code,
         name: lName,
         l1_code: l1 || null,
         want_role: "learner",

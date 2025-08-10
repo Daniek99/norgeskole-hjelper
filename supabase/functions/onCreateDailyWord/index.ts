@@ -67,29 +67,92 @@ serve(async (req) => {
       await supabase.from("translations").insert({ dailyword_id, language_code: l1, text: translated });
     }
 
-    // 4) Image generation: fallback SVG
-    const fileName = `dailyword-${dailyword_id}.svg`;
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='800'>
-      <defs><linearGradient id='g' x1='0' x2='1'><stop offset='0%' stop-color='hsl(226,75%,45%)'/><stop offset='100%' stop-color='hsl(190,90%,42%)'/></linearGradient></defs>
-      <rect width='100%' height='100%' fill='url(#g)'/>
-      <text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='80' fill='white' font-family='sans-serif'>${norwegian}</text>
-    </svg>`;
-    const bytes = new TextEncoder().encode(svg);
-    await supabase.storage.from("generated").upload(fileName, bytes, { contentType: "image/svg+xml", upsert: true });
-    const { data: pub } = await supabase.storage.from("generated").getPublicUrl(fileName);
-    await supabase.from("daily_words").update({ image_url: pub.publicUrl, image_alt: `Illustrasjon av ${norwegian}` }).eq("id", dailyword_id);
+    // 4) Image generation (Hugging Face FLUX.1-schnell if available; else SVG)
+    let imageUrl = "";
+    const imageAlt = `Illustrasjon av ${norwegian}`;
+    try {
+      const hfKey = Deno.env.get("HUGGINGFACE_API_TOKEN");
+      if (!demo && hfKey) {
+        const prompt = `Norwegian word: ${norwegian}. Illustration. Simple, clear, high contrast, SFW, educational.`;
+        const hfRes = await fetch("https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${hfKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ inputs: prompt }),
+        });
+        if (!hfRes.ok) throw new Error("HF request failed");
+        const arr = new Uint8Array(await hfRes.arrayBuffer());
+        const fileNamePng = `dailyword-${dailyword_id}.png`;
+        await supabase.storage.from("generated").upload(fileNamePng, arr, { contentType: "image/png", upsert: true });
+        const { data: pubPng } = await supabase.storage.from("generated").getPublicUrl(fileNamePng);
+        imageUrl = pubPng.publicUrl;
+      }
+    } catch (_) { /* ignore */ }
 
-    // 5) Level texts (simple placeholders)
-    const samples = [
-      `Jeg ser ${norwegian}. Det er fint.`,
-      `${norwegian} er tema i dag. Vi lærer ord og setninger om ${norwegian}.`,
-      `I dag snakker vi om ${norwegian}. Les og øv: "${norwegian}".`,
-    ];
+    if (!imageUrl) {
+      const fileNameSvg = `dailyword-${dailyword_id}.svg`;
+      const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='800'>
+        <defs><linearGradient id='g' x1='0' x2='1'><stop offset='0%' stop-color='hsl(226,75%,45%)'/><stop offset='100%' stop-color='hsl(190,90%,42%)'/></linearGradient></defs>
+        <rect width='100%' height='100%' fill='url(#g)'/>
+        <text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='80' fill='white' font-family='sans-serif'>${norwegian}</text>
+      </svg>`;
+      const bytes = new TextEncoder().encode(svg);
+      await supabase.storage.from("generated").upload(fileNameSvg, bytes, { contentType: "image/svg+xml", upsert: true });
+      const { data: pubSvg } = await supabase.storage.from("generated").getPublicUrl(fileNameSvg);
+      imageUrl = pubSvg.publicUrl;
+    }
+
+    await supabase.from("daily_words").update({ image_url: imageUrl, image_alt: imageAlt }).eq("id", dailyword_id);
+
+    // 5) Level texts (OpenRouter if available; else simple samples)
+    let texts: string[] | null = null;
+    try {
+      const orKey = Deno.env.get("OPENROUTER_API_KEY");
+      if (!demo && orKey) {
+        const prompt = `Du skal lage 3 svært korte norske lesetekster (nivå 1-3) for voksne A1-A2. Bruk nøkkelordet \"${norwegian}\".\n` +
+          `Nivå 1: 1-2 enkle setninger. Nivå 2: 2-3 enkle setninger. Nivå 3: 3-4 korte setninger.\n` +
+          `Returner som JSON-array med tre strenger.`;
+        const orRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${orKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "meta-llama/llama-3.1-8b-instruct:free",
+            messages: [
+              { role: "system", content: "Du skriver veldig enkle norske setninger for voksne på nivå A1-A2." },
+              { role: "user", content: prompt },
+            ],
+            temperature: 0.4,
+          }),
+        });
+        const j = await orRes.json();
+        const content = j?.choices?.[0]?.message?.content ?? "";
+        try {
+          const parsed = JSON.parse(content);
+          if (Array.isArray(parsed) && parsed.length >= 3) {
+            texts = [String(parsed[0]), String(parsed[1]), String(parsed[2])];
+          }
+        } catch {
+          const parts = String(content).split("\n").filter(Boolean).slice(0, 3);
+          if (parts.length === 3) texts = parts;
+        }
+      }
+    } catch (_) { /* ignore */ }
+
+    if (!texts) {
+      texts = [
+        `Jeg ser ${norwegian}. Det er fint.`,
+        `${norwegian} er tema i dag. Vi lærer ord og setninger om ${norwegian}.`,
+        `I dag snakker vi om ${norwegian}. Les og øv: "${norwegian}".`,
+      ];
+    }
+
     await supabase.from("level_texts").delete().eq("dailyword_id", dailyword_id);
     await supabase.from("level_texts").insert([
-      { dailyword_id, level: 1, text: samples[0], image_url: pub.publicUrl, image_alt: `Nivå 1: ${norwegian}` },
-      { dailyword_id, level: 2, text: samples[1], image_url: pub.publicUrl, image_alt: `Nivå 2: ${norwegian}` },
-      { dailyword_id, level: 3, text: samples[2], image_url: pub.publicUrl, image_alt: `Nivå 3: ${norwegian}` },
+      { dailyword_id, level: 1, text: texts[0], image_url: imageUrl, image_alt: `Nivå 1: ${norwegian}` },
+      { dailyword_id, level: 2, text: texts[1], image_url: imageUrl, image_alt: `Nivå 2: ${norwegian}` },
+      { dailyword_id, level: 3, text: texts[2], image_url: imageUrl, image_alt: `Nivå 3: ${norwegian}` },
     ]);
 
     // 6) Tasks (basic MCQ per level)

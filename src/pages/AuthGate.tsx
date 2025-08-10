@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -28,11 +28,25 @@ const AuthGate = () => {
   const [l1, setL1] = useState("en");
   const navigate = useNavigate();
 
+  // Smooth redirect if already logged in
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (profile?.role === "teacher") navigate("/teacher");
+      else if (profile?.role === "learner") navigate("/elev");
+      else if (profile?.role === "admin") navigate("/admin");
+    });
+  }, []);
+
   const goInvite = () => {
     if (!invite) return toast({ title: "Skriv inn invitasjonskode" });
     navigate(`/invite/${invite}`);
   };
-
   const teacherLogin = async () => {
     if (!email || !password) return toast({ title: "Fyll inn e-post og passord" });
     const { error } = await supabase.auth.signInWithPassword({ email, password });
