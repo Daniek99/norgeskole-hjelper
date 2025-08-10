@@ -20,6 +20,7 @@ const L1_OPTIONS = [
 ];
 
 const AuthGate = () => {
+  const [step, setStep] = useState<"invite" | "form">("invite");
   const [role, setRole] = useState<"teacher" | "learner" | null>(null);
   const [invite, setInvite] = useState("");
   const [email, setEmail] = useState("");
@@ -43,26 +44,40 @@ const AuthGate = () => {
     });
   }, []);
 
-  const goInvite = () => {
+  const checkInvite = async () => {
     if (!invite) return toast({ title: "Skriv inn invitasjonskode" });
-    navigate(`/invite/${invite}`);
+    try {
+      const { data, error } = await (supabase as any)
+        .from("admin_invite_links")
+        .select("role")
+        .eq("code", invite)
+        .eq("active", true)
+        .single();
+
+      if (error || !data) {
+        return toast({ title: "Ugyldig invitasjonskode" });
+      }
+
+      setRole(data.role);
+      setStep("form");
+    } catch (e) {
+      toast({ title: "Feil ved sjekk av invitasjonskode" });
+    }
   };
   const teacherLogin = async () => {
     if (!email || !password) return toast({ title: "Fyll inn e-post og passord" });
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return toast({ title: "Innlogging feilet", description: error.message });
 
-    // If invite code provided, finalize teacher linkage
-    if (invite) {
-      const { error: rpcErr } = await supabase.rpc("register_with_invite", {
-        invite_code: invite,
-        name: name || email.split("@")[0],
-        l1_code: null,
-        want_role: "teacher",
-      });
-      if (rpcErr) {
-        toast({ title: "Invitasjon feilet", description: rpcErr.message });
-      }
+    // Apply invite after successful login
+    const { error: rpcErr } = await supabase.rpc("register_with_invite", {
+      invite_code: invite,
+      name: name || email.split("@")[0],
+      l1_code: null,
+      want_role: "teacher",
+    });
+    if (rpcErr) {
+      toast({ title: "Invitasjon feilet", description: rpcErr.message });
     }
 
     navigate("/teacher");
@@ -81,7 +96,6 @@ const AuthGate = () => {
   };
 
   const learnerSignUp = async () => {
-    if (!invite) return toast({ title: "Invitasjonskode mangler" });
     if (!name || !password) return toast({ title: "Navn og passord er påkrevd" });
     const stubEmail = `${crypto.randomUUID()}@noemail.local`;
     const { data, error } = await supabase.auth.signUp({ email: stubEmail, password });
@@ -102,25 +116,28 @@ const AuthGate = () => {
       <section className="container py-10">
         <div className="mx-auto max-w-xl space-y-6 text-center">
           <h1 className="text-3xl font-bold">Velkommen til NorskA2-Prelit</h1>
-          <p className="text-muted-foreground">Velg rolle og skriv inn invitasjonskode for å komme i gang.</p>
+          
+          {step === "invite" && (
+            <>
+              <p className="text-muted-foreground">Skriv inn invitasjonskode for å komme i gang.</p>
+              <div className="flex gap-2 justify-center">
+                <Input placeholder="Invitasjonskode" value={invite} onChange={(e) => setInvite(e.target.value)} />
+                <Button onClick={checkInvite}>Fortsett</Button>
+              </div>
+            </>
+          )}
 
-          <div className="flex gap-2 justify-center">
-            <Button variant={role === "teacher" ? "hero" : "secondary"} onClick={() => setRole("teacher")}>Jeg er lærer</Button>
-            <Button variant={role === "learner" ? "hero" : "secondary"} onClick={() => setRole("learner")}>Jeg er elev</Button>
-          </div>
-
-          <div className="flex gap-2 justify-center">
-            <Input placeholder="Invitasjonskode" value={invite} onChange={(e) => setInvite(e.target.value)} />
-            <Button variant="outline" onClick={goInvite}>Fortsett</Button>
-          </div>
-
-          {role === "teacher" && (
+          {step === "form" && role === "teacher" && (
             <Card>
               <CardHeader>
-                <CardTitle>Lærer – e-post og passord</CardTitle>
-                <CardDescription>Logg inn eller registrer ny konto</CardDescription>
+                <CardTitle>Lærer – logg inn eller registrer</CardTitle>
+                <CardDescription>Invitasjonskode: {invite}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
+                <div className="grid gap-2 text-left">
+                  <Label htmlFor="name">Navn (valgfritt)</Label>
+                  <Input id="name" value={name} onChange={(e)=>setName(e.target.value)} />
+                </div>
                 <div className="grid gap-2 text-left">
                   <Label htmlFor="email">E-post</Label>
                   <Input id="email" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} />
@@ -133,15 +150,16 @@ const AuthGate = () => {
                   <Button onClick={teacherLogin}>Logg inn</Button>
                   <Button variant="outline" onClick={teacherSignUp}>Registrer</Button>
                 </div>
+                <Button variant="ghost" onClick={() => setStep("invite")}>Tilbake</Button>
               </CardContent>
             </Card>
           )}
 
-          {role === "learner" && (
+          {step === "form" && role === "learner" && (
             <Card>
               <CardHeader>
-                <CardTitle>Elev – rask registrering</CardTitle>
-                <CardDescription>Kun navn, passord og morsmål</CardDescription>
+                <CardTitle>Elev – registrer deg</CardTitle>
+                <CardDescription>Invitasjonskode: {invite}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid gap-2 text-left">
@@ -158,7 +176,8 @@ const AuthGate = () => {
                     {L1_OPTIONS.map(o=> <option key={o.code} value={o.code}>{o.name}</option>)}
                   </select>
                 </div>
-                <Button variant="hero" onClick={learnerSignUp}>Fortsett</Button>
+                <Button onClick={learnerSignUp}>Registrer</Button>
+                <Button variant="ghost" onClick={() => setStep("invite")}>Tilbake</Button>
               </CardContent>
             </Card>
           )}

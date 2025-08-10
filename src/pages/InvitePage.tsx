@@ -40,13 +40,13 @@ export default function InvitePage() {
         .select("role")
         .eq("code", code)
         .eq("active", true)
-        .limit(1);
+        .single();
 
-      if (error || !data || data.length === 0) {
+      if (error || !data) {
         setError(error?.message || "Ugyldig eller inaktiv invitasjon.");
         setRole(null);
       } else {
-        setRole((data[0] as any).role as Role);
+        setRole(data.role as Role);
       }
       setLoading(false);
     })();
