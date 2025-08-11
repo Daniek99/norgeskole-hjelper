@@ -21,7 +21,7 @@ const L1_OPTIONS = [
 
 const AuthGate = () => {
   const [step, setStep] = useState<"invite" | "form">("invite");
-  const [role, setRole] = useState<"teacher" | "learner" | null>(null);
+  const [role, setRole] = useState<"teacher" | "learner" | "admin" | null>(null);
   const [invite, setInvite] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -47,20 +47,30 @@ const AuthGate = () => {
   const checkInvite = async () => {
     if (!invite) return toast({ title: "Skriv inn invitasjonskode" });
     try {
-      const { data, error } = await (supabase as any)
+      console.log("Checking invite code:", invite);
+      const { data, error } = await supabase
         .from("admin_invite_links")
         .select("role")
         .eq("code", invite)
         .eq("active", true)
-        .single();
+        .maybeSingle();
 
-      if (error || !data) {
+      console.log("Invite check result:", { data, error });
+
+      if (error) {
+        console.error("Database error:", error);
+        return toast({ title: "Feil ved sjekk av invitasjonskode" });
+      }
+      
+      if (!data) {
+        console.log("No invite found for code:", invite);
         return toast({ title: "Ugyldig invitasjonskode" });
       }
 
       setRole(data.role);
       setStep("form");
     } catch (e) {
+      console.error("Caught error:", e);
       toast({ title: "Feil ved sjekk av invitasjonskode" });
     }
   };

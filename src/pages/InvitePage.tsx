@@ -35,15 +35,22 @@ export default function InvitePage() {
       setLoading(true);
       setError(null);
       console.log("Slår opp invitasjon for kode:", code);
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("admin_invite_links")
         .select("role")
         .eq("code", code)
         .eq("active", true)
-        .single();
+        .maybeSingle();
 
-      if (error || !data) {
-        setError(error?.message || "Ugyldig eller inaktiv invitasjon.");
+      console.log("InvitePage check result:", { data, error });
+
+      if (error) {
+        console.error("Database error:", error);
+        setError("Feil ved oppslag av invitasjon.");
+        setRole(null);
+      } else if (!data) {
+        console.log("No invite found for code:", code);
+        setError("Ugyldig eller inaktiv invitasjon.");
         setRole(null);
       } else {
         setRole(data.role as Role);
