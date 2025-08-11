@@ -479,6 +479,10 @@ export type Database = {
         Args: { code: string }
         Returns: string
       }
+      is_current_user_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       register_with_invite: {
         Args:
           | { code: string; name: string; l1_code: string; want_role: string }
