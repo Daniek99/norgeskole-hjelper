@@ -18,26 +18,26 @@ export type Database = {
         Row: {
           active: boolean
           classroom_id: string
+          code: string
           created_at: string
-          for_role: Database["public"]["Enums"]["app_role"]
           id: string
-          invite_code: string
+          role: Database["public"]["Enums"]["app_role"]
         }
         Insert: {
           active?: boolean
           classroom_id: string
+          code: string
           created_at?: string
-          for_role: Database["public"]["Enums"]["app_role"]
           id?: string
-          invite_code: string
+          role: Database["public"]["Enums"]["app_role"]
         }
         Update: {
           active?: boolean
           classroom_id?: string
+          code?: string
           created_at?: string
-          for_role?: Database["public"]["Enums"]["app_role"]
           id?: string
-          invite_code?: string
+          role?: Database["public"]["Enums"]["app_role"]
         }
         Relationships: [
           {
@@ -45,6 +45,45 @@ export type Database = {
             columns: ["classroom_id"]
             isOneToOne: false
             referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      classroom_memberships: {
+        Row: {
+          classroom_id: string | null
+          created_at: string | null
+          id: string
+          profile_id: string | null
+          role: string
+        }
+        Insert: {
+          classroom_id?: string | null
+          created_at?: string | null
+          id?: string
+          profile_id?: string | null
+          role: string
+        }
+        Update: {
+          classroom_id?: string | null
+          created_at?: string | null
+          id?: string
+          profile_id?: string | null
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "classroom_memberships_classroom_id_fkey"
+            columns: ["classroom_id"]
+            isOneToOne: false
+            referencedRelation: "classrooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classroom_memberships_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -428,13 +467,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_current_user_classroom: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_current_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_invite_role: {
+        Args: { code: string }
+        Returns: string
+      }
       register_with_invite: {
-        Args: {
-          invite_code: string
-          name: string
-          l1_code?: string
-          want_role?: Database["public"]["Enums"]["app_role"]
-        }
+        Args:
+          | { code: string; name: string; l1_code: string; want_role: string }
+          | {
+              invite_code: string
+              name: string
+              l1_code?: string
+              want_role?: Database["public"]["Enums"]["app_role"]
+            }
         Returns: undefined
       }
     }
