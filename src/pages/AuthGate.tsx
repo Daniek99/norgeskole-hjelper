@@ -38,9 +38,9 @@ const AuthGate = () => {
         .select("role")
         .eq("id", user.id)
         .maybeSingle();
-      if (profile?.role === "teacher") navigate("/teacher");
+      if (profile?.role === "admin") navigate("/admin");
+      else if (profile?.role === "teacher") navigate("/teacher");
       else if (profile?.role === "learner") navigate("/elev");
-      else if (profile?.role === "admin") navigate("/admin");
     });
   }, []);
 
@@ -81,7 +81,7 @@ const AuthGate = () => {
 
     // Apply invite after successful login
     const { error: rpcErr } = await supabase.rpc("register_with_invite", {
-      invite_code: invite,
+      code: invite,
       name: name || email.split("@")[0],
       l1_code: null,
       want_role: "teacher",
@@ -90,7 +90,8 @@ const AuthGate = () => {
       toast({ title: "Invitasjon feilet", description: rpcErr.message });
     }
 
-    navigate("/teacher");
+    // Force page reload to clear state and trigger proper routing
+    window.location.href = "/teacher";
   };
 
   const teacherSignUp = async () => {
@@ -112,13 +113,15 @@ const AuthGate = () => {
     if (error || !data.user) return toast({ title: "Registrering feilet", description: error?.message });
 
     const { error: rpcErr } = await supabase.rpc("register_with_invite", {
-      invite_code: invite,
+      code: invite,
       name,
       l1_code: l1 === "other" ? null : l1,
       want_role: "learner",
     });
     if (rpcErr) return toast({ title: "Kunne ikke bruke invitasjon", description: rpcErr.message });
-    navigate("/elev");
+    
+    // Force page reload to clear state and trigger proper routing
+    window.location.href = "/elev";
   };
 
   return (

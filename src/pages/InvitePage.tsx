@@ -121,7 +121,8 @@ export default function InvitePage() {
         .maybeSingle(); // Ensure client cache updates
     }
 
-    navigate("/teacher");
+    // Force page reload to clear state and trigger proper routing
+    window.location.href = "/teacher";
   } catch (e: any) {
     console.error("Teacher continue error:", e);
     setError(e.message ?? "Noe gikk galt ved lærer-registrering.");
@@ -154,7 +155,8 @@ export default function InvitePage() {
       });
       if (rpcErr) throw rpcErr;
 
-      navigate("/elev");
+    // Force page reload to clear state and trigger proper routing
+    window.location.href = "/elev";
     } catch (e: any) {
       console.error("Learner continue error:", e); // Added console logging for debug
       setError(e.message ?? "Noe gikk galt ved elev-registrering.");
