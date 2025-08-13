@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useMe } from "@/hooks/useMe";
 import { useDailyWordBundle, useTodayOrLatestWord } from "@/hooks/useDailyWords";
@@ -26,7 +27,10 @@ const LearnerHome = () => {
   return (
     <main className="min-h-screen py-8">
       {/* Top right controls */}
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-4 right-4 flex gap-2">
+        <Link to="/elev/profile">
+          <Button variant="outline">Min profil</Button>
+        </Link>
         <HighContrastToggle />
       </div>
 

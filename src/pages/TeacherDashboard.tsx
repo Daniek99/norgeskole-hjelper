@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useMe } from "@/hooks/useMe";
 import { useDailyWordsHistory } from "@/hooks/useDailyWords";
@@ -36,7 +37,12 @@ const TeacherDashboard = () => {
 
   return (
     <main className="min-h-screen container py-6">
-      <h1 className="text-2xl font-bold mb-4">Lærer</h1>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Lærer</h1>
+        <Link to="/teacher/profile">
+          <Button variant="outline">Min profil</Button>
+        </Link>
+      </div>
       <Tabs defaultValue="dagens">
         <TabsList className="mb-4">
           <TabsTrigger value="dagens">Dagens ord</TabsTrigger>

@@ -7,7 +7,9 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import InvitePage from "./pages/InvitePage";
 import TeacherDashboard from "./pages/TeacherDashboard";
+import TeacherProfile from "./pages/TeacherProfile";
 import LearnerHome from "./pages/LearnerHome";
+import LearnerProfile from "./pages/LearnerProfile";
 import AdminDashboard from "./pages/AdminDashboard";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
@@ -25,10 +27,12 @@ const App = () => (
 
           <Route element={<ProtectedRoute role="teacher" />}>
             <Route path="/teacher" element={<TeacherDashboard />} />
+            <Route path="/teacher/profile" element={<TeacherProfile />} />
           </Route>
 
           <Route element={<ProtectedRoute role="learner" />}>
             <Route path="/elev" element={<LearnerHome />} />
+            <Route path="/elev/profile" element={<LearnerProfile />} />
           </Route>
 
           <Route element={<ProtectedRoute role="admin" />}>
