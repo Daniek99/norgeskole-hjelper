@@ -12,6 +12,7 @@ export const useLearnerRecordings = (learnerId?: string | null) => {
       const { data, error } = await supabase
         .from("learner_recordings")
         .select("id,audio_url,created_at,dailyword_id,learner_id")
+        .eq("learner_id", learnerId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Recording[];

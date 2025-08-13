@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useMe } from "@/hooks/useMe";
 import { HighContrastToggle } from "@/components/HighContrastToggle";
@@ -12,10 +12,17 @@ import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 
 const TeacherProfile = () => {
-  const { user } = useAuth();
-  const { data: me, refetch } = useMe(user?.id);
+  const { user, loading: authLoading } = useAuth();
+  const { data: me, isLoading: profileLoading, refetch } = useMe(user?.id);
   const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState(me?.name || "");
+  const [name, setName] = useState("");
+
+  // Update form state when profile data loads
+  useEffect(() => {
+    if (me) {
+      setName(me.name || "");
+    }
+  }, [me]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -39,8 +46,16 @@ const TeacherProfile = () => {
     window.location.href = "/";
   };
 
-  if (!me) {
+  if (authLoading || profileLoading) {
     return <div className="mx-auto max-w-xl p-8 text-center">Laster…</div>;
+  }
+
+  if (!user || !me) {
+    return (
+      <div className="mx-auto max-w-xl p-8 text-center">
+        <p>Kunne ikke laste profil. <Link to="/teacher">Gå tilbake</Link></p>
+      </div>
+    );
   }
 
   return (

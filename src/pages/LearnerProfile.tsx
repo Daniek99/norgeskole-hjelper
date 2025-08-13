@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useMe } from "@/hooks/useMe";
 import { useLearnerRecordings } from "@/hooks/useLearnerRecordings";
@@ -24,13 +24,22 @@ const L1_OPTIONS = [
 ];
 
 const LearnerProfile = () => {
-  const { user } = useAuth();
-  const { data: me, refetch } = useMe(user?.id);
-  const { data: recordings } = useLearnerRecordings(user?.id);
+  const { user, loading: authLoading } = useAuth();
+  const { data: me, isLoading: profileLoading, refetch } = useMe(user?.id);
+  const { data: recordings, isLoading: recordingsLoading } = useLearnerRecordings(user?.id);
   const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState(me?.name || "");
-  const [l1, setL1] = useState(me?.l1 || "en");
-  const [difficultyLevel, setDifficultyLevel] = useState(me?.difficulty_level || 1);
+  const [name, setName] = useState("");
+  const [l1, setL1] = useState("en");
+  const [difficultyLevel, setDifficultyLevel] = useState(1);
+
+  // Update form state when profile data loads
+  useEffect(() => {
+    if (me) {
+      setName(me.name || "");
+      setL1(me.l1 || "en");
+      setDifficultyLevel(me.difficulty_level || 1);
+    }
+  }, [me]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -58,8 +67,16 @@ const LearnerProfile = () => {
     window.location.href = "/";
   };
 
-  if (!me) {
+  if (authLoading || profileLoading) {
     return <div className="mx-auto max-w-xl p-8 text-center">Laster…</div>;
+  }
+
+  if (!user || !me) {
+    return (
+      <div className="mx-auto max-w-xl p-8 text-center">
+        <p>Kunne ikke laste profil. <Link to="/elev">Gå tilbake</Link></p>
+      </div>
+    );
   }
 
   return (
@@ -179,7 +196,9 @@ const LearnerProfile = () => {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center p-4 bg-muted rounded-lg">
-                <p className="text-2xl font-bold text-primary">{recordings?.length || 0}</p>
+                <p className="text-2xl font-bold text-primary">
+                  {recordingsLoading ? "..." : (recordings?.length || 0)}
+                </p>
                 <p className="text-sm text-muted-foreground">Lydopptak</p>
               </div>
               <div className="text-center p-4 bg-muted rounded-lg">
