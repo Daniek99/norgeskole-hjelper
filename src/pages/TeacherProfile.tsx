@@ -120,7 +120,7 @@ const TeacherProfile = () => {
                   variant="outline" 
                   onClick={() => {
                     setIsEditing(false);
-                    setName(me.name);
+                    setName(me.name || "");
                   }}
                 >
                   Avbryt

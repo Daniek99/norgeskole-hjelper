@@ -176,9 +176,9 @@ const LearnerProfile = () => {
                   variant="outline" 
                   onClick={() => {
                     setIsEditing(false);
-                    setName(me.name);
+                    setName(me.name || "");
                     setL1(me.l1 || "en");
-                    setDifficultyLevel(me.difficulty_level);
+                    setDifficultyLevel(me.difficulty_level || 1);
                   }}
                 >
                   Avbryt

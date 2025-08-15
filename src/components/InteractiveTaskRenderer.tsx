@@ -31,7 +31,7 @@ const MCQ = ({ task, onSubmit }: Props) => {
       <CardContent className="space-y-3">
         <div className="grid gap-2">
           {options.map((opt, idx) => (
-            <Button key={idx} variant={selected === idx ? "hero" : "secondary"} onClick={() => setSelected(idx)}>
+            <Button key={idx} variant={selected === idx ? "default" : "secondary"} onClick={() => setSelected(idx)}>
               {opt}
             </Button>
           ))}
