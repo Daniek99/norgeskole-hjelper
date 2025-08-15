@@ -3,11 +3,13 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useMe } from "@/hooks/useMe";
 import { useDailyWordsHistory } from "@/hooks/useDailyWords";
+import { useLearnerRecordings } from "@/hooks/useLearnerRecordings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -47,6 +49,7 @@ const TeacherDashboard = () => {
         <TabsList className="mb-4">
           <TabsTrigger value="dagens">Dagens ord</TabsTrigger>
           <TabsTrigger value="historikk">Historikk</TabsTrigger>
+          <TabsTrigger value="elever">Elever</TabsTrigger>
           <TabsTrigger value="videoer">Videoer</TabsTrigger>
         </TabsList>
 
@@ -85,6 +88,9 @@ const TeacherDashboard = () => {
                   {dw.image_url && <img src={dw.image_url} alt={dw.image_alt ?? dw.norwegian} className="w-24 h-24 object-cover rounded-md" loading="lazy" />}
                   <div className="space-x-2">
                     {!dw.approved && <Button onClick={()=>approve(dw.id)}>Godkjenn & Publiser</Button>}
+                    <Link to={`/teacher/daily-word/${dw.id}`}>
+                      <Button variant="outline">Se innhold</Button>
+                    </Link>
                   </div>
                 </CardContent>
               </Card>
@@ -92,11 +98,103 @@ const TeacherDashboard = () => {
           </div>
         </TabsContent>
 
+        <TabsContent value="elever">
+          <LearnerManager classroomId={me?.classroom_id} />
+        </TabsContent>
+
         <TabsContent value="videoer">
           <VideosManager />
         </TabsContent>
       </Tabs>
     </main>
+  );
+};
+
+const LearnerManager = ({ classroomId }: { classroomId?: string | null }) => {
+  const [learners, setLearners] = useState<any[]>([]);
+
+  const loadLearners = async () => {
+    if (!classroomId) return;
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id,name,difficulty_level,l1")
+      .eq("classroom_id", classroomId)
+      .eq("role", "learner")
+      .order("name");
+    if (!error) setLearners(data ?? []);
+  };
+
+  const updateLearnerLevel = async (learnerId: string, newLevel: number) => {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ difficulty_level: newLevel })
+      .eq("id", learnerId);
+    if (error) return toast({ title: "Oppdatering feilet", description: error.message });
+    toast({ title: "Nivå oppdatert" });
+    loadLearners();
+  };
+
+  useEffect(() => { loadLearners(); }, [classroomId]);
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-xl font-semibold">Elever i klassen</h3>
+      <div className="grid gap-4">
+        {learners.map(learner => (
+          <Card key={learner.id}>
+            <CardHeader>
+              <CardTitle className="flex justify-between items-center">
+                <span>{learner.name}</span>
+                <div className="flex items-center gap-2">
+                  <Label>Nivå:</Label>
+                  <Select 
+                    value={learner.difficulty_level.toString()} 
+                    onValueChange={(value) => updateLearnerLevel(learner.id, parseInt(value))}
+                  >
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1</SelectItem>
+                      <SelectItem value="2">2</SelectItem>
+                      <SelectItem value="3">3</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-2">
+                Morsmål: {learner.l1 || "Ikke angitt"}
+              </p>
+              <LearnerRecordings learnerId={learner.id} />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const LearnerRecordings = ({ learnerId }: { learnerId: string }) => {
+  const { data: recordings } = useLearnerRecordings(learnerId);
+
+  return (
+    <div className="space-y-2">
+      <h4 className="font-medium">Lydopptak ({recordings?.length || 0})</h4>
+      <div className="grid gap-2 max-h-32 overflow-y-auto">
+        {recordings?.slice(0, 5).map(recording => (
+          <div key={recording.id} className="flex items-center gap-2 p-2 bg-muted rounded">
+            <audio controls className="flex-1 h-8">
+              <source src={recording.audio_url} type="audio/webm" />
+            </audio>
+            <span className="text-xs text-muted-foreground">
+              {new Date(recording.created_at).toLocaleDateString('no')}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 };
 

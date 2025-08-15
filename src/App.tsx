@@ -10,6 +10,7 @@ import TeacherDashboard from "./pages/TeacherDashboard";
 import TeacherProfile from "./pages/TeacherProfile";
 import LearnerHome from "./pages/LearnerHome";
 import LearnerProfile from "./pages/LearnerProfile";
+import DailyWordDetail from "./pages/DailyWordDetail";
 import AdminDashboard from "./pages/AdminDashboard";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
@@ -33,6 +34,7 @@ const App = () => (
           <Route element={<ProtectedRoute role="learner" />}>
             <Route path="/elev" element={<LearnerHome />} />
             <Route path="/elev/profile" element={<LearnerProfile />} />
+            <Route path="/elev/daily-word/:dailyWordId" element={<DailyWordDetail />} />
           </Route>
 
           <Route element={<ProtectedRoute role="admin" />}>

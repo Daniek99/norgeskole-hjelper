@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useMe } from "@/hooks/useMe";
-import { useDailyWordBundle, useTodayOrLatestWord } from "@/hooks/useDailyWords";
+import { useDailyWordBundle, useTodayOrLatestWord, useDailyWordsHistory } from "@/hooks/useDailyWords";
 import { HighContrastToggle } from "@/components/HighContrastToggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +15,11 @@ const LearnerHome = () => {
   const { user } = useAuth();
   const { data: me } = useMe(user?.id);
   const { data: dw } = useTodayOrLatestWord(me?.classroom_id ?? null);
+  const { data: history } = useDailyWordsHistory(me?.classroom_id ?? null, 1, 10);
   const { data: bundle } = useDailyWordBundle(dw?.id, me?.l1 ?? undefined, me?.difficulty_level);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const navigate = useNavigate();
 
   const l1Translation = useMemo(() =>
     bundle?.translations.find(t => t.language_code === (me?.l1 ?? ""))?.text ?? null
@@ -23,6 +27,10 @@ const LearnerHome = () => {
 
   const tasksForLevel = useMemo(() => (bundle?.tasks ?? []).filter(t => t.level === (me?.difficulty_level ?? 1)), [bundle, me?.difficulty_level]);
   const levelText = useMemo(() => (bundle?.levelTexts ?? []).find(t => t.level === (me?.difficulty_level ?? 1))?.text ?? null, [bundle, me?.difficulty_level]);
+
+  const navigateToPastContent = (dailyWordId: string) => {
+    navigate(`/elev/daily-word/${dailyWordId}`);
+  };
 
   return (
     <main className="min-h-screen py-8">
@@ -40,6 +48,29 @@ const LearnerHome = () => {
         <div className="text-center">
           <h1 className="text-4xl font-bold mb-6">Hei, {me?.name ?? "elev"}</h1>
         </div>
+
+        {/* Navigation for past content */}
+        {history && history.length > 1 && (
+          <Card className="max-w-2xl mx-auto">
+            <CardHeader>
+              <CardTitle className="text-center">Tidligere innhold</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {history.filter(h => h.approved).map(h => (
+                  <Button 
+                    key={h.id} 
+                    variant={h.id === dw?.id ? "default" : "outline"}
+                    onClick={() => navigateToPastContent(h.id)}
+                    className="text-sm"
+                  >
+                    {h.date}: {h.norwegian}
+                  </Button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {dw && (
           <div className="text-center space-y-6">
