@@ -155,17 +155,84 @@ serve(async (req) => {
       { dailyword_id, level: 3, text: texts[2], image_url: imageUrl, image_alt: `Nivå 3: ${norwegian}` },
     ]);
 
-    // 6) Tasks (basic MCQ per level)
+    // 6) Tasks (varied interactive tasks per level)
     await supabase.from("tasks").delete().eq("dailyword_id", dailyword_id);
-    const mcq = (lvl: number) => ({
-      dailyword_id,
-      type: "mcq" as any,
-      level: lvl,
-      prompt: `Velg riktig ord: ${norwegian}`,
-      data: { question: `Hva er dagens ord?`, options: [norwegian, "mat", "hus", "bok"] },
-      answer: { index: 0 },
-    });
-    await supabase.from("tasks").insert([mcq(1), mcq(2), mcq(3)]);
+    
+    const distractors = ["mat", "hus", "bok", "bil", "katt", "hund", "blomst", "tre", "vann", "sol"];
+    const getRandomDistractors = (exclude: string, count: number) => {
+      return distractors.filter(d => d !== exclude).sort(() => Math.random() - 0.5).slice(0, count);
+    };
+
+    const tasks = [
+      // Level 1: Simple MCQ
+      {
+        dailyword_id,
+        type: "mcq",
+        level: 1,
+        data: { 
+          question: `Hva er dagens ord?`, 
+          options: [norwegian, ...getRandomDistractors(norwegian, 3)].sort(() => Math.random() - 0.5)
+        },
+        answer: { index: [norwegian, ...getRandomDistractors(norwegian, 3)].sort(() => Math.random() - 0.5).indexOf(norwegian) },
+      },
+      // Level 1: Fill in the blank
+      {
+        dailyword_id,
+        type: "fill_blank",
+        level: 1,
+        data: { 
+          sentence: `Jeg ser en _____.`,
+          options: [norwegian, ...getRandomDistractors(norwegian, 2)]
+        },
+        answer: { correct: norwegian },
+      },
+      // Level 2: Translation MCQ
+      {
+        dailyword_id,
+        type: "mcq",
+        level: 2,
+        data: { 
+          question: `Velg riktig oversettelse av "${norwegian}"`,
+          options: [norwegian, ...getRandomDistractors(norwegian, 3)].sort(() => Math.random() - 0.5)
+        },
+        answer: { index: [norwegian, ...getRandomDistractors(norwegian, 3)].sort(() => Math.random() - 0.5).indexOf(norwegian) },
+      },
+      // Level 2: Sentence completion
+      {
+        dailyword_id,
+        type: "sentence_complete",
+        level: 2,
+        data: { 
+          question: `Fullfør setningen: "${norwegian} er..."`,
+          options: ["fin", "stor", "liten", "rød"]
+        },
+        answer: { correct: "fin" },
+      },
+      // Level 3: Complex MCQ
+      {
+        dailyword_id,
+        type: "mcq",
+        level: 3,
+        data: { 
+          question: `I hvilken sammenheng brukes "${norwegian}" oftest?`,
+          options: ["Daglig tale", "Formell setting", "Bare i tekst", "Aldri"]
+        },
+        answer: { index: 0 },
+      },
+      // Level 3: Word association
+      {
+        dailyword_id,
+        type: "word_association",
+        level: 3,
+        data: { 
+          question: `Hvilke ord passer sammen med "${norwegian}"?`,
+          options: ["pen", "stygg", "interessant", "kjedelig"]
+        },
+        answer: { correct: ["pen", "interessant"] },
+      }
+    ];
+
+    await supabase.from("tasks").insert(tasks);
 
     return new Response(JSON.stringify({ ok: true, dailyword_id }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
