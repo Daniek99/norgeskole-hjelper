@@ -29,6 +29,7 @@ const App = () => (
           <Route element={<ProtectedRoute role="teacher" />}>
             <Route path="/teacher" element={<TeacherDashboard />} />
             <Route path="/teacher/profile" element={<TeacherProfile />} />
+            <Route path="/teacher/daily-word/:dailyWordId" element={<DailyWordDetail />} />
           </Route>
 
           <Route element={<ProtectedRoute role="learner" />}>

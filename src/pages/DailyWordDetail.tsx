@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useMe } from "@/hooks/useMe";
 import { useDailyWordBundle } from "@/hooks/useDailyWords";
@@ -16,6 +16,8 @@ const DailyWordDetail = () => {
   const { user } = useAuth();
   const { data: me } = useMe(user?.id);
   const { data: bundle } = useDailyWordBundle(dailyWordId, me?.l1 ?? undefined, me?.difficulty_level);
+  const location = useLocation();
+  const isTeacher = location.pathname.startsWith('/teacher');
 
   const dailyWord = useMemo(() => {
     if (!bundle) return null;
@@ -51,12 +53,25 @@ const DailyWordDetail = () => {
     <main className="min-h-screen py-8">
       {/* Top right controls */}
       <div className="absolute top-4 right-4 flex gap-2">
-        <Link to="/elev">
-          <Button variant="outline">Tilbake til hjem</Button>
-        </Link>
-        <Link to="/elev/profile">
-          <Button variant="outline">Min profil</Button>
-        </Link>
+        {isTeacher ? (
+          <>
+            <Link to="/teacher">
+              <Button variant="outline">Tilbake til dashboard</Button>
+            </Link>
+            <Link to="/teacher/profile">
+              <Button variant="outline">Min profil</Button>
+            </Link>
+          </>
+        ) : (
+          <>
+            <Link to="/elev">
+              <Button variant="outline">Tilbake til hjem</Button>
+            </Link>
+            <Link to="/elev/profile">
+              <Button variant="outline">Min profil</Button>
+            </Link>
+          </>
+        )}
         <HighContrastToggle />
       </div>
 
@@ -64,7 +79,9 @@ const DailyWordDetail = () => {
       <div className="container max-w-4xl mx-auto space-y-8">
         {/* Greeting centered at top */}
         <div className="text-center">
-          <h1 className="text-4xl font-bold mb-6">Historisk innhold</h1>
+          <h1 className="text-4xl font-bold mb-6">
+            {isTeacher ? "Innholdsforhåndsvisning" : "Historisk innhold"}
+          </h1>
         </div>
 
         {bundle && (
